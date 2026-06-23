@@ -1,128 +1,215 @@
 import json
 import os
 
-DB_FILE = "series_db.json"
+# Константи для статусів
+STATUSES = {
+    "1": "Дивлюсь",
+    "2": "Пройдено/Переглянуто",
+    "3": "Відкладено"
+}
+FILE_NAME = "series_data.json"
 
 def load_data():
-    if not os.path.exists(DB_FILE):
+    """Завантажує дані з файлу JSON. Якщо файлу немає, повертає порожній список."""
+    if not os.path.exists(FILE_NAME):
         return []
     try:
-        with open(DB_FILE, "r", encoding="utf-8") as f:
+        with open(FILE_NAME, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except (json.JSONDecodeError, IOError):
-        print("⚠️ Помилка читання файлу даних. Створено новий список.")
+    except (json.JSONDecodeError, PermissionError):
+        print("[Помилка] Не вдалося зчитати файл даних. Створено новий каталог.")
         return []
 
 def save_data(data):
+    """Зберігає дані у файл JSON."""
     try:
-        with open(DB_FILE, "w", encoding="utf-8") as f:
+        with open(FILE_NAME, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
-    except IOError:
-        print("⚠️ Помилка запису у файл!")
+    except Exception as e:
+        print(f"[Помилка] Не вдалося зберегти дані: {e}")
 
-def get_valid_int(prompt, min_val=0, max_val=None):
+def get_int_input(prompt, min_val=None, max_val=None):
+    """Безпечне зчитування цілого числа з валідацією."""
     while True:
         try:
             val = int(input(prompt))
-            if val < min_val:
-                print(f"Число не може бути меншим за {min_val}.")
+            if min_val is not None and val < min_val:
+                print(f"Помилка: значення не може бути меншим за {min_val}.")
                 continue
             if max_val is not None and val > max_val:
-                print(f"Число не може бути більшим за {max_val}.")
+                print(f"Помилка: значення не може бути більшим за {max_val}.")
                 continue
             return val
         except ValueError:
-            print("❌ Помилка! Будь ласка, введіть коректне ціле число.")
+            print("Некоректний ввід! Будь ласка, введіть ціле число.")
 
-def get_valid_status():
-    statuses = {1: "Заплановано", 2: "В процесі", 3: "Переглянуто", 4: "Відкладено"}
-    print("\nОберіть статус:")
-    for k, v in statuses.items():
-        print(f"  {k} - {v}")
-    choice = get_valid_int("Ваш вибір: ", 1, 4)
-    return statuses[choice]
+def get_status_input():
+    """Діалог вибору статусу серіалу."""
+    print("\nОберіть статус серіалу:")
+    for key, value in STATUSES.items():
+        print(f"  {key}. {value}")
+    while True:
+        choice = input("Ваш вибір (1-3): ").strip()
+        if choice in STATUSES:
+            return STATUSES[choice]
+        print("Некоректний вибір. Спробуйте ще раз.")
+
+# --- ФУНКЦІОНАЛЬНІСТЬ ВАРІАНТУ ---
 
 def add_series(data):
-    print("\n--- Додавання нового серіалу ---")
-    title = input("Введіть назву серіалу: ").strip()
-    if not title:
-        print("❌ Назва не може бути порожньою!")
-        return
+    """Функція 1: Додавання серіалу"""
+    print("\n=== ДОДАВАННЯ НОВОГО СЕРІАЛУ ===")
+    name = input("Введіть назву серіалу: ").strip()
+    while not name:
+        print("Назва не може бути порожньою!")
+        name = input("Введіть назву серіалу: ").strip()
+        
+    seasons = get_int_input("Кількість переглянутих сезонів: ", min_val=0)
+    episodes = get_int_input("Кількість переглянутих серій: ", min_val=0)
+    status = get_status_input()
+    score = get_int_input("Ваша оцінка (від 1 до 10): ", min_val=1, max_val=10)
     
-    seasons = get_valid_int("Кількість переглянутих сезонів: ")
-    episodes = get_valid_int("Кількість переглянутих серій: ")
-    status = get_valid_status()
-    rating = get_valid_int("Введіть оцінку (від 1 до 10, або 0 якщо без оцінки): ", 0, 10)
-    
-    series = {
-        "title": title,
-        "watched_seasons": seasons,
-        "watched_episodes": episodes,
+    new_series = {
+        "title": name,
+        "seasons": seasons,
+        "episodes": episodes,
         "status": status,
-        "rating": rating if rating != 0 else None
+        "score": score
     }
     
-    data.append(series)
+    data.append(new_series)
     save_data(data)
-    print(f"✅ Серіал '{title}' успішно додано!")
+    print(f"✔ Серіал '{name}' успішно додано до каталогу!")
 
-def show_series(data, filtered_data=None):
-    target_data = filtered_data if filtered_data is not None else data
-    if not target_data:
-        print("\nСписок порожній.")
+def print_table(series_list):
+    """Допоміжна функція для гарного виведення списку у вигляді таблиці."""
+    if not series_list:
+        print("Список порожній.")
         return
-
-    print("\n" + "="*75)
-    print(f"{'Назва':<25} | {'Сезони':<8} | {'Серії':<6} | {'Статус':<15} | {'Оцінка':<6}")
-    print("="*75)
-    for s in target_data:
-        rating_str = str(s['rating']) if s['rating'] is not None else "-"
-        print(f"{s['title']:<25} | {s['watched_seasons']:<8} | {s['watched_episodes']:<6} | {s['status']:<15} | {rating_str:<6}")
-    print("="*75)
+        
+    print("\n" + "="*85)
+    print(f"{'№':<3} | {'Назва серіалу':<30} | {'Сезони/Серії':<12} | {'Статус':<20} | {'Оцінка':<6}")
+    print("="*85)
+    for idx, item in enumerate(series_list, 1):
+        progress = f"S{item['seasons']} / E{item['episodes']}"
+        print(f"{idx:<3} | {item['title'][:30]:<30} | {progress:<12} | {item['status']:<20} | {item['score']:<6}")
+    print("="*85)
 
 def filter_by_status(data):
-    if not data:
-        print("\nБаза даних порожня. Немає що фільтрувати.")
-        return
-    status = get_valid_status()
-    filtered = [s for s in data if s['status'] == status]
-    print(f"\nФільтр за статусом: '{status}'")
-    show_series(data, filtered)
-
-def calculate_average_rating(data):
-    ratings = [s['rating'] for s in data if s['rating'] is not None]
-    if not ratings:
-        print("\n📊 Немає оцінених серіалів для підрахунку середнього балу.")
-        return
+    """Функція 2: Фільтрація за статусом"""
+    print("\n=== ФІЛЬТРАЦІЯ ЗА СТАТУСОМ ===")
+    status_to_filter = get_status_input()
     
-    avg_rating = sum(ratings) / len(ratings)
-    print(f"\n📊 Середня оцінка ваших серіалів: {avg_rating:.2f} / 10 (всього оцінено: {len(ratings)})")
+    filtered = [item for item in data if item['status'] == status_to_filter]
+    
+    print(f"\nРезультати фільтрації за статусом '{status_to_filter}':")
+    print_table(filtered)
+
+def calculate_average_score(data):
+    """Функція 3: Середня оцінка"""
+    print("\n=== СЕРЕДНЯ ОЦІНКА КАТАЛОГУ ===")
+    if not data:
+        print("Каталог порожній. Немає оцінок для розрахунку.")
+        return
+        
+    total_score = sum(item['score'] for item in data)
+    avg_score = total_score / len(data)
+    
+    print(f"Загальна кількість серіалів в базі: {len(data)}")
+    print(f"📊 Середня оцінка вашого каталогу: {avg_score:.2f} / 10")
+
+def view_all_series(data):
+    """Функція 4: Перегляд усіх серіалів"""
+    print("\n=== УСІ СЕРІАЛИ В КАТАЛОЗІ ===")
+    print_table(data)
+
+
+# --- ГОЛОВНЕ МЕНЮ ---
 
 def main():
-    data = load_data()
+    # Завантажуємо актуальні дані з JSON при старті
+    catalog = load_data()
+    
     while True:
-        print("\n=== МЕНЕДЖЕР КАТАЛОГУ СЕРІАЛІВ ===")
+        print("\n--- МЕНЕДЖЕР КАТАЛОГУ СЕРІАЛІВ ---")
         print("1. Переглянути всі серіали")
         print("2. Додати новий серіал")
         print("3. Фільтрувати за статусом")
-        print("4. Показати середню оцінку")
-        print("5. Вийти з програми")
+        print("4. Порахувати середню оцінку")
+        print("5. Вихід")
         
         choice = input("Оберіть дію (1-5): ").strip()
         
         if choice == "1":
-            show_series(data)
+            view_all_series(catalog)
         elif choice == "2":
-            add_series(data)
+            add_series(catalog)
         elif choice == "3":
-            filter_by_status(data)
+            filter_by_status(catalog)
         elif choice == "4":
-            calculate_average_rating(data)
+            calculate_average_score(catalog)
         elif choice == "5":
-            print("👋 До побачення! Дані збережено.")
+            print("\nДякуємо за використання утиліти! Дані збережено. Бувай!")
             break
         else:
-            print("❌ Некоректний вибір. Спробуйте ще раз.")
+            print("Некоректний пункт меню. Оберіть число від 1 до 5.")
 
 if __name__ == "__main__":
     main()
+    import json
+
+test_data = [
+    {
+        "title": "Пуститися берега (Breaking Bad)",
+        "seasons": 5,
+        "episodes": 62,
+        "status": "Пройдено/Переглянуто",
+        "score": 10
+    },
+    {
+        "title": "Дивні дива (Stranger Things)",
+        "seasons": 4,
+        "episodes": 34,
+        "status": "Дивлюсь",
+        "score": 9
+    },
+    {
+        "title": "Відьмак (The Witcher)",
+        "seasons": 3,
+        "episodes": 24,
+        "status": "Відкладено",
+        "score": 6
+    },
+    {
+        "title": "Шерлок (Sherlock)",
+        "seasons": 4,
+        "episodes": 13,
+        "status": "Пройдено/Переглянуто",
+        "score": 10
+    },
+    {
+        "title": "Мандалорець",
+        "seasons": 3,
+        "episodes": 24,
+        "status": "Дивлюсь",
+        "score": 8
+    },
+    {
+        "title": "Хлопаки (The Boys)",
+        "seasons": 4,
+        "episodes": 32,
+        "status": "Відкладено",
+        "score": 9
+    }
+]
+
+FILE_NAME = "series_data.json"
+
+try:
+    with open(FILE_NAME, 'w', encoding='utf-8') as f:
+        json.dump(test_data, f, ensure_ascii=False, indent=4)
+    print("==================================================")
+    print(f"✔ Файл '{FILE_NAME}' !")
+    print("==================================================")
+except Exception as e:
+    print(f"Помилка: {e}")
